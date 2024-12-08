@@ -62,10 +62,5 @@ def callback_message(callback):
     if callback.data == 'Back':
         menu(callback.message)
 
-
-
-
-
-
 # бесконечное выполнение кода
 bot.polling()
