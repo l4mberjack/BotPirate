@@ -7,7 +7,6 @@ from stegano import lsb
 token = secrets.get('BOT_API_TOKEN')
 bot = telebot.TeleBot(token)
 
-
 # Хендлер и функция для обработки команды /start
 @bot.message_handler(commands=['start'])
 def start(message):
@@ -17,21 +16,22 @@ def start(message):
     markup.add(start_button, faq_button)
     bot.send_message(message.chat.id, text="Привет, {0.first_name} 👋\nВоспользуйся кнопками\n🚀 Старт - для начала работы с ботом\n❓ FAQ - справка о боте".format(message.from_user), reply_markup=markup)
 
+
 #Менюшка c двумя кнопками
 def menu(message):
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
     start_button = types.KeyboardButton("🚀 Старт")
     faq_button = types.KeyboardButton("❓ FAQ")
-    markup.add(start_button, faq_button)
-    bot.send_message(message.chat.id, text="Главное меню\n🚀 Старт - для начала работы с ботом\n❓ FAQ - справка о боте",reply_markup=markup)
+    keyboard.add(start_button, faq_button)
+    bot.send_message(message.chat.id, text="Главное меню\n🚀 Старт - для начала работы с ботом\n❓ FAQ - справка о боте",reply_markup=keyboard)
 
 
 # Обработчик кнопок после /start
 @bot.message_handler(content_types=['text'])
 def handle_message(message):
     if message.text == "🚀 Старт":
-         bot.send_message(message.chat.id, "Давай хешировать!🤘", reply_markup=types.ReplyKeyboardRemove())
-         whatDo(message)
+         bot.send_message(message.chat.id, "Давай выберем что будем делать!👨‍💻",reply_markup=types.ReplyKeyboardRemove())
+         main(message)
     elif message.text == "❓ FAQ":
          markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
          faq_button = types.KeyboardButton("🔙 Назад")
@@ -56,45 +56,58 @@ def handle_message(message):
 
 
 
-def whatDo(message):
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+def what_do(message):
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
     hash_button = types.KeyboardButton("Хеширование")
     steg_button = types.KeyboardButton("Стеганография")
-    markup.add(hash_button, steg_button)
-    bot.send_message(message.chat.id, "Давай выберем что будем делать!👨‍💻",reply_markup=markup)
+    keyboard.add(hash_button, steg_button)
+    bot.send_message(message.chat.id,"йоу", reply_markup=keyboard)
+    if message.text == "Хеширование":
+        bot.send_message(message.chat.id, "йоу?")
+        main(message)
+    elif message.text == "Стеганография":
+        bot.send_message(message.chat.id, "хз не придумал")
+
 
 
 def main(message):
     markup = types.InlineKeyboardMarkup()
-    btnText = types.InlineKeyboardButton("💬Текст💬",callback_data='Text')
-    btnAudio = types.InlineKeyboardButton("🔊Аудио🔊",callback_data='Audio')
+    btnText = types.InlineKeyboardButton("MD5",callback_data='MD5')
+    btnAudio = types.InlineKeyboardButton("SHA-1",callback_data='SHA1')
     markup.row(btnText, btnAudio)
-    btnDocs = types.InlineKeyboardButton("📑Документ📑",callback_data='Docs')
+    btnDocs = types.InlineKeyboardButton("SHA-256",callback_data='Docs')
     markup.row(btnDocs)
-    btnStick = types.InlineKeyboardButton("🐹Стикер🐹",callback_data='Sticker')
-    btnVid = types.InlineKeyboardButton("🎦Видео🎦",callback_data='Video')
+    btnStick = types.InlineKeyboardButton("SHA-224",callback_data='Sticker')
+    btnVid = types.InlineKeyboardButton("SHA-384",callback_data='Video')
     markup.row(btnStick, btnVid)
-    btnVoice = types.InlineKeyboardButton("🎤Голосовое сообщение🎤",callback_data='Voice')
+    btnVoice = types.InlineKeyboardButton("SHA-512",callback_data='Voice')
     markup.row(btnVoice)
     btnBack = types.InlineKeyboardButton("🔙Назад🔙", callback_data='Back')
     markup.row(btnBack)
-    bot.send_message(message.chat.id, "Выбери что будем хешировать:", reply_markup=markup, parse_mode="Markdown")
+    bot.send_message(message.chat.id, "Выбери метод хеширования:", reply_markup=markup, parse_mode="Markdown")
 
 
 def hashing(message):
-    bot.send_message(message.chat.id, "Скинь мне данные а я их захеширую 😎")
     if message.content_type == 'text':
         user_message = message.text
-        hasher = hashlib.sha256()
+        hasher = hashlib.md5()
         hasher.update(user_message.encode('utf-8'))  # Кодируем в UTF-8 перед хешированием
         hex_hash = hasher.hexdigest()
-        bot.reply_to(message, f"Вы отправили: {user_message}\nЕго SHA-256 хеш: {hex_hash}")
-    # elif message.content_type == 'audio':
+        bot.reply_to(message, f"Вы отправили: {user_message}\nЕго MD5 хеш: {hex_hash}")
+    elif message.content_type == 'sticker':
+        file_info = bot.get_file(message.sticker.file_id)
+        downloaded_file = bot.download_file(file_info.file_path)
+        hasher = hashlib.sha1()
+        hasher.update(downloaded_file)
+        hex_hash = hasher.hexdigest()
+        bot.reply_to(message, f"Вы отправили стикер.\nЕго SHA-1 хеш: {hex_hash}")
 
 
 @bot.callback_query_handler(func=lambda callback: True)
 def callback_message(callback):
-    if callback.data == 'Text':
+    if callback.data == 'MD5':
+        chose_Data(callback.message)
+    elif callback.data == 'SHA1':
         chose_Data(callback.message)
     elif callback.data == 'Back':
         menu(callback.message)
