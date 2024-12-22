@@ -8,6 +8,7 @@ token = secrets.get('BOT_API_TOKEN')
 bot = telebot.TeleBot(token)
 user_state = {}
 
+
 # Создаем основные меню
 def main_menu():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
@@ -21,7 +22,8 @@ def what_menu():
     btn1 = types.KeyboardButton("Хеширование")
     btn2 = types.KeyboardButton("Стеганография")
     btn3 = types.KeyboardButton("\U0001F519 Назад")
-    markup.add(btn1, btn2, btn3)
+    btn4 = types.KeyboardButton("Раскрыть секретное сообщение")
+    markup.add(btn1, btn2, btn4,btn3)
     return markup
 
 def hash_menu():
@@ -109,7 +111,13 @@ def handle_text(message):
 
 
     elif message.text == "Стеганография":
-        bot.send_message(message.chat.id, "Последние новости: Сегодня отличный день!")
+        bot.send_message(message.chat.id, "Пришли мне картинку")
+
+
+    elif message.text == "Раскрыть секретное сообщение":
+        bot.send_message(message.chat.id, "Пришлите изображение с секретным сообщением")
+
+
 
     else:
         bot.send_message(
