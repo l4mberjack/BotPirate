@@ -1,5 +1,9 @@
 import telebot
 import hashlib
+import os
+from cryptography.fernet import Fernet
+from stegano import lsb
+from PIL import Image
 from telebot import types
 from secrets import secrets
 
@@ -7,7 +11,129 @@ from secrets import secrets
 token = secrets.get('BOT_API_TOKEN')
 bot = telebot.TeleBot(token)
 user_state = {}
+key = Fernet.generate_key()
+cipher = Fernet(key)
 
+
+def encrypt_message(message):
+    """Шифрует сообщение."""
+    encrypted_message = cipher.encrypt(message.encode())  # Преобразуем текст в байты
+    return encrypted_message.decode()  # Преобразуем байты в строку для Stegano
+
+def decrypt_message(encrypted_message):
+    """Расшифровывает сообщение."""
+    decrypted_message = cipher.decrypt(encrypted_message.encode())  # Преобразуем строку в байты
+    return decrypted_message.decode()  # Преобразуем байты в текст
+
+def hide_secret_message(image_path, message, output_path="secret_image.png"):
+    """Скрывает сообщение в изображении."""
+    try:
+        secret_image = lsb.hide(image_path, message)
+        secret_image.save(output_path)
+        print(f"Сообщение {decrypt_message(message)} скрыто в {output_path}")
+        return output_path
+    except Exception as e:
+        raise ValueError(f"Ошибка при сокрытии сообщения: {str(e)}")
+
+# def reveal_secret_message(image_path):
+#     """Извлекает сообщение из изображения."""
+#     try:
+#         secret_data = lsb.reveal(image_path)
+#         if not secret_data:
+#             raise ValueError("Не удалось извлечь скрытое сообщение. Возможно, оно отсутствует.")
+#         return secret_data
+#     except Exception as e:
+#         raise ValueError(f"Ошибка при извлечении сообщения: {str(e)}")
+
+def process_photo(message):
+    if message.content_type == 'photo':
+        try:
+            # Получаем файл от Telegram
+            file_info = bot.get_file(message.photo[-1].file_id)
+            downloaded_file = bot.download_file(file_info.file_path)
+
+            # Сохраняем файл как user_image.png
+            with open("user_image.png", "wb") as new_file:
+                new_file.write(downloaded_file)
+
+            # Проверяем, что файл создан
+            if not os.path.exists("user_image.png"):
+                raise FileNotFoundError("Файл user_image.png не был создан.")
+
+            bot.send_message(message.chat.id, "Теперь введите секретное сообщение:")
+            bot.register_next_step_handler(message, process_secret_message)
+        except Exception as e:
+            bot.send_message(message.chat.id, f"Ошибка при обработке изображения: {str(e)}")
+    else:
+        bot.send_message(message.chat.id, "Пожалуйста, отправьте изображение.")
+
+def process_secret_message(message):
+    secret_message = message.text
+    if not secret_message:
+        bot.send_message(message.chat.id, "Сообщение не может быть пустым.")
+        return
+
+    try:
+        # Проверяем, что файл user_image.png существует
+        if not os.path.exists("user_image.png"):
+            bot.send_message(message.chat.id, "Ошибка: файл изображения не найден.")
+            return
+
+        # Конвертируем изображение в PNG (на случай изменений)
+        converted_image_path = convert_to_png("user_image.png")
+
+        # Шифруем сообщение
+        encrypted_message = encrypt_message(secret_message)
+
+        # Скрываем сообщение в изображении
+        output_path = hide_secret_message(converted_image_path, encrypted_message)
+
+        # Отправляем изображение с секретом
+        with open(output_path, "rb") as secret_image:
+            bot.send_photo(
+                message.chat.id,
+                secret_image,
+                caption="Вот ваше изображение с секретным сообщением!"
+            )
+    except Exception as e:
+        bot.send_message(message.chat.id, f"Ошибка: {str(e)}")
+
+def convert_to_png(image_path, output_path="converted_image.png"):
+    """Конвертирует изображение в формат PNG."""
+    try:
+        with Image.open(image_path) as img:
+            img = img.convert("RGB")  # Преобразование в RGB
+            img.save(output_path, "PNG")
+        return output_path
+    except Exception as e:
+        raise ValueError(f"Ошибка при преобразовании изображения: {str(e)}")
+
+# def process_reveal(message):
+#     if message.content_type == 'photo':
+#         try:
+#             # Получаем файл от Telegram
+#             file_info = bot.get_file(message.photo[-1].file_id)
+#             downloaded_file = bot.download_file(file_info.file_path)
+#
+#             # Сохраняем файл как user_image.png
+#             with open("user_image.png", "wb") as new_file:
+#                 new_file.write(downloaded_file)
+#
+#             # Проверяем, что файл создан
+#             if not os.path.exists("user_image.png"):
+#                 raise FileNotFoundError("Файл user_image.png не был создан.")
+#
+#             # Извлекаем скрытое сообщение
+#             secret_data = reveal_secret_message("user_image.png")
+#
+#             # Расшифровываем сообщение
+#             decrypted_message = decrypt_message(secret_data)
+#
+#             bot.send_message(message.chat.id, f"Скрытое сообщение: {decrypted_message}")
+#         except Exception as e:
+#             bot.send_message(message.chat.id, f"Ошибка: {str(e)}")
+#     else:
+#         bot.send_message(message.chat.id, "Пожалуйста, отправьте изображение.")
 
 # Создаем основные меню
 def main_menu():
@@ -52,7 +178,7 @@ def faq_menu():
 # Обработчик команды хелп для выдачи справки о хешах
 @bot.message_handler(commands=['help'])
 def help_command(message):
-    file= open('./priv.docx','rb')
+    file= open('./СПРАВКА МЕТОДЫ ХЕШИРОВАНИЯ.docx','rb')
     bot.send_document(message.chat.id, file)
 
 
@@ -112,11 +238,12 @@ def handle_text(message):
 
     elif message.text == "Стеганография":
         bot.send_message(message.chat.id, "Пришли мне картинку")
+        bot.register_next_step_handler(message, process_photo)
 
 
     elif message.text == "Раскрыть секретное сообщение":
         bot.send_message(message.chat.id, "Пришлите изображение с секретным сообщением")
-
+        bot.register_next_step_handler(message, process_reveal)
 
 
     else:
@@ -164,9 +291,17 @@ def callback_message(callback):
 
 
 #MD5
-@bot.message_handler(content_types=["text", "audio", "document", "sticker", "voice"])
+@bot.message_handler(content_types=["text", "audio", "document", "sticker", "voice", "photo"])
 def hashingMd5(message):
-    if message.content_type == 'text':
+    if message.content_type == 'photo':
+        file_info = bot.get_file(message.photo[-1].file_id)
+        downloaded_file = bot.download_file(file_info.file_path)
+        hasher = hashlib.md5()
+        hasher.update(downloaded_file)
+        hex_hash = hasher.hexdigest()
+        bot.reply_to(message, f"Вы отправили фото.\nЕго MD5 хеш: {hex_hash}")
+
+    elif message.content_type == 'text':
         user_message = message.text
         hasher = hashlib.md5()
         hasher.update(user_message.encode('utf-8'))  # Кодируем в UTF-8 перед хешированием
@@ -551,5 +686,7 @@ def hashingBlake2s(message):
             "Я могу работать с текстом, аудио, документами, стикерами и голосовыми сообщениями\n"
             "Пожалуйста, попробуйте снова :)"
         )
+
+
 
 bot.polling(none_stop=True)
